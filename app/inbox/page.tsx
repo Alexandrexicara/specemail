@@ -26,6 +26,15 @@ function parsedAnexos(raw?: string): Anexo[] {
   try { return JSON.parse(raw || '[]') } catch { return [] }
 }
 
+function formatarData(data: string, incluirHora = false) {
+  const valor = new Date(data)
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    ...(incluirHora ? { timeStyle: 'short' as const } : {}),
+  }).format(valor)
+}
+
 // Limite por arquivo: 14MB — o provedor de e-mail (Brevo) barra e-mails acima
 // de 20MB no total (erro "Mail size too large"). Em base64 isso equivale a ~14MB
 // de arquivo. Acima disso o Brevo recusa o envio.
@@ -139,7 +148,8 @@ export default function InboxPage() {
   }
 
   const excluirMensagem = async (id: number) => {
-    await fetch(`/api/mensagens/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await fetch(`/api/mensagens/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) { showToast('Não foi possível excluir a mensagem.', 'erro'); return }
     setMensagens(prev => prev.filter(m => m.id !== id))
     if (aberta?.id === id) { setAberta(null); setPainelM('lista') }
   }
@@ -477,7 +487,7 @@ export default function InboxPage() {
                     {pasta === 'enviados' ? msg.paraEmail : (msg.deNome || msg.deEmail)}
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--text-quiet)', fontFamily: 'var(--font-mono)', flexShrink: 0, marginLeft: 6 }}>
-                    {new Date(msg.criadoEm).toLocaleDateString('pt-BR')}
+                    {formatarData(msg.criadoEm)}
                   </span>
                 </div>
                 <div style={{ fontSize: 13, fontWeight: msg.lida ? 400 : 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -531,7 +541,7 @@ export default function InboxPage() {
                   </div>
                   <div>
                     <div style={{ color: 'var(--text-quiet)', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 3 }}>Data</div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>{new Date(aberta.criadoEm).toLocaleString('pt-BR')}</div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>{formatarData(aberta.criadoEm, true)}</div>
                   </div>
                 </div>
               </div>
@@ -660,7 +670,7 @@ export default function InboxPage() {
                       + Adicionar arquivo
                     </button>
                   </div>
-                  <input ref={fileRef} type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  <input ref={fileRef} type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,application/pdf,.pdf"
                     style={{ display: 'none' }} onChange={e => handleArquivos(e.target.files)} />
                   <div
                     onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--acid-green)' }}

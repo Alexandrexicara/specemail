@@ -45,8 +45,18 @@ export async function DELETE(
     const usuario = await getUsuario()
     if (!usuario) return NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 })
     const { id } = await params
-    await db.delete(mensagens).where(eq(mensagens.id, parseInt(id)))
-    return NextResponse.json({ mensagem: 'Excluído.' })
+    const mensagem = await db.select().from(mensagens).where(eq(mensagens.id, parseInt(id))).limit(1)
+    if (!mensagem.length || (mensagem[0].paraEmail !== usuario.email && mensagem[0].deEmailId !== usuario.id)) {
+      return NextResponse.json({ erro: 'Mensagem não encontrada.' }, { status: 404 })
+    }
+
+    if (mensagem[0].pasta === 'lixeira') {
+      await db.delete(mensagens).where(eq(mensagens.id, parseInt(id)))
+      return NextResponse.json({ mensagem: 'Excluído definitivamente.' })
+    }
+
+    await db.update(mensagens).set({ pasta: 'lixeira' }).where(eq(mensagens.id, parseInt(id)))
+    return NextResponse.json({ mensagem: 'Movido para a lixeira.' })
   } catch (err) {
     return NextResponse.json({ erro: String(err) }, { status: 500 })
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/db'
 import { mensagens, sessoes, emails } from '@/db/schemas/specemail'
-import { eq, and, gt } from 'drizzle-orm'
+import { eq, and, gt, or } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
@@ -26,14 +26,20 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const pasta = searchParams.get('pasta') || 'entrada'
 
-    // Para entrada: deleta onde paraEmail = usuario
-    // Para enviados/rascunho/lixeira: deleta onde deEmailId = usuario
+    // A entrada vai para a lixeira; a lixeira é apagada definitivamente.
     if (pasta === 'entrada') {
-      await db.delete(mensagens).where(
+      await db.update(mensagens).set({ pasta: 'lixeira' }).where(
         and(eq(mensagens.paraEmail, usuario.email), eq(mensagens.pasta, 'entrada'))
       )
-    } else {
+    } else if (pasta === 'lixeira') {
       await db.delete(mensagens).where(
+        and(
+          eq(mensagens.pasta, 'lixeira'),
+          or(eq(mensagens.paraEmail, usuario.email), eq(mensagens.deEmailId, usuario.id)),
+        )
+      )
+    } else {
+      await db.update(mensagens).set({ pasta: 'lixeira' }).where(
         and(eq(mensagens.deEmailId, usuario.id), eq(mensagens.pasta, pasta))
       )
     }

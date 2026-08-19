@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/db'
 import { mensagens, sessoes, emails, configuracoes } from '@/db/schemas/specemail'
-import { eq, and, gt, desc } from 'drizzle-orm'
+import { eq, and, gt, desc, or } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -15,6 +15,18 @@ const ICON_IG = iconB64('ig.png')
 const ICON_FB = iconB64('fb.png')
 
 export const runtime = 'nodejs'
+
+const MAX_ANEXOS_BYTES = 10 * 1024 * 1024
+const TIPOS_ANEXO_PERMITIDOS = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+])
 
 async function getUsuario() {
   const cookieStore = await cookies()
@@ -36,6 +48,10 @@ async function enviarViaBrevo(opts: {
   corpo: string
   anexos: Array<{ nome: string; tipo: string; tamanho?: number; base64: string }>
 }) {
+  if (!process.env.BREVO_API_KEY) {
+    throw new Error('Envio externo indisponível: configure BREVO_API_KEY no arquivo .env.')
+  }
+
   const LOG = process.env.LOG_FILE || '/tmp/spece.log'
   const log = (msg: string) => {
     try { require('fs').appendFileSync(LOG, `${new Date().toISOString()} ${msg}\n`) } catch {}
@@ -110,7 +126,10 @@ async function enviarViaBrevo(opts: {
 
   const payload: Record<string, unknown> = {
     sender: { name: opts.deNome || 'speceEMAIL', email: 'santossilvac992@gmail.com' },
-    replyTo: { name: opts.deNome || opts.deEmail, email: 'santossilvac992@gmail.com' },
+    replyTo: {
+      name: opts.deNome || opts.deEmail,
+      email: process.env.EMAIL_INBOUND_ADDRESS || opts.deEmail,
+    },
     to: [{ email: opts.para }],
     subject: opts.assunto || '(Sem assunto)',
     htmlContent: htmlCorpo,
@@ -179,6 +198,13 @@ export async function GET(request: Request) {
       rows = await db.select().from(mensagens)
         .where(and(eq(mensagens.deEmailId, usuario.id), eq(mensagens.pasta, 'enviados')))
         .orderBy(desc(mensagens.criadoEm))
+    } else if (pasta === 'lixeira') {
+      rows = await db.select().from(mensagens)
+        .where(and(
+          eq(mensagens.pasta, 'lixeira'),
+          or(eq(mensagens.paraEmail, usuario.email), eq(mensagens.deEmailId, usuario.id)),
+        ))
+        .orderBy(desc(mensagens.criadoEm))
     } else {
       rows = await db.select().from(mensagens)
         .where(and(eq(mensagens.deEmailId, usuario.id), eq(mensagens.pasta, pasta)))
@@ -210,6 +236,18 @@ export async function POST(request: Request) {
     if (!isRascunho && !para) return NextResponse.json({ erro: 'Informe o destinatário.' }, { status: 400 })
 
     const anexosParsed: Array<{ nome: string; tipo: string; tamanho: number; base64: string }> = anexos ?? []
+    const totalAnexos = anexosParsed.reduce((total, anexo) => total + Number(anexo.tamanho || 0), 0)
+
+    if (!Array.isArray(anexos) || anexosParsed.some(anexo =>
+      !anexo?.nome || !anexo?.tipo || !anexo?.base64 || !TIPOS_ANEXO_PERMITIDOS.has(anexo.tipo)
+    )) {
+      return NextResponse.json({ erro: 'Anexo inválido. Envie imagens, PDF ou vídeo MP4/WebM/MOV.' }, { status: 400 })
+    }
+
+    if (totalAnexos > MAX_ANEXOS_BYTES) {
+      return NextResponse.json({ erro: 'Os anexos juntos devem ter no máximo 10 MB.' }, { status: 413 })
+    }
+
     const anexosJson = JSON.stringify(anexosParsed)
 
     if (isRascunho) {
@@ -230,20 +268,6 @@ export async function POST(request: Request) {
     const paraEmail = para.toLowerCase().trim()
     const assuntoFinal = assunto || '(Sem assunto)'
     const corpoFinal = corpo || ''
-
-    // Salva nos enviados
-    await db.insert(mensagens).values({
-      deEmailId: usuario.id,
-      deEmail: usuario.email,
-      deNome: usuario.nome,
-      paraEmail: paraEmail,
-      assunto: assuntoFinal,
-      corpo: corpoFinal,
-      anexos: anexosJson,
-      pasta: 'enviados',
-      lida: true,
-    })
-    console.log(`[MENSAGENS POST] Salvo em enviados OK`)
 
     // Verifica se é usuário interno
     const destinatarioInterno = await db.select().from(emails)
@@ -277,10 +301,31 @@ export async function POST(request: Request) {
     })
     log(`[POST] BREVO OK para ${paraEmail}`)
 
+    await db.insert(mensagens).values({
+      deEmailId: usuario.id,
+      deEmail: usuario.email,
+      deNome: usuario.nome,
+      paraEmail: paraEmail,
+      assunto: assuntoFinal,
+      corpo: corpoFinal,
+      anexos: anexosJson,
+      pasta: 'enviados',
+      lida: true,
+    })
+
     return NextResponse.json({ mensagem: 'E-mail enviado com sucesso!' })
   } catch (err) {
-    log(`[POST] ERRO: ${String(err)}`)
+    const erro = String(err)
+    log(`[POST] ERRO: ${erro}`)
     console.error('[MENSAGENS POST] ERRO:', err)
-    return NextResponse.json({ erro: String(err) }, { status: 500 })
+    if (erro.includes('unrecognised IP address')) {
+      return NextResponse.json({
+        erro: 'A Brevo bloqueou o IP deste computador. Autorize o IP público nas configurações de segurança da Brevo.',
+      }, { status: 403 })
+    }
+    if (erro.includes('Key not found') || erro.includes('unauthorised') || erro.includes('Unauthorized')) {
+      return NextResponse.json({ erro: 'A chave da Brevo foi rejeitada. Gere uma nova chave API normal.' }, { status: 502 })
+    }
+    return NextResponse.json({ erro: 'Não foi possível enviar o e-mail. Verifique a configuração da Brevo.' }, { status: 502 })
   }
 }
