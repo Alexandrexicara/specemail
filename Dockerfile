@@ -8,6 +8,7 @@ RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 COPY . .
 
 RUN pnpm install --frozen-lockfile && pnpm run build && (test -d public || mkdir public)
+RUN mkdir -p public/icons && cp assets/icons/*.png public/icons/
 
 FROM node:22-slim AS runner
 

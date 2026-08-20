@@ -3,22 +3,6 @@ import { db } from '@/db'
 import { mensagens, sessoes, emails, configuracoes } from '@/db/schemas/specemail'
 import { eq, and, gt, desc, or } from 'drizzle-orm'
 import { cookies } from 'next/headers'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
-// Ícones de redes sociais embutidos (base64 PNG) para aparecerem em qualquer cliente de e-mail
-const ICON_DIR = join(process.cwd(), 'assets', 'icons')
-const iconB64 = (file: string) => {
-  try {
-    return readFileSync(join(ICON_DIR, file)).toString('base64')
-  } catch {
-    return ''
-  }
-}
-const ICON_SITE = iconB64('site.png')
-const ICON_WA = iconB64('wa.png')
-const ICON_IG = iconB64('ig.png')
-const ICON_FB = iconB64('fb.png')
 
 export const runtime = 'nodejs'
 
@@ -53,6 +37,7 @@ async function enviarViaBrevo(opts: {
   assunto: string
   corpo: string
   anexos: Array<{ nome: string; tipo: string; tamanho?: number; base64: string }>
+  baseUrl: string
 }) {
   if (!process.env.BREVO_API_KEY) {
     throw new Error('Envio externo indisponível: configure BREVO_API_KEY no arquivo .env.')
@@ -82,6 +67,7 @@ async function enviarViaBrevo(opts: {
   // Separa imagens de outros anexos
   const imagens = opts.anexos.filter(a => a.tipo.startsWith('image/'))
   const outrosAnexos = opts.anexos.filter(a => !a.tipo.startsWith('image/'))
+  const iconUrl = (name: string) => `${opts.baseUrl}/icons/${name}.png`
 
   // Imagens como inline attachments referenciadas por cid
   const imagensHtml = imagens.map((a, i) =>
@@ -109,14 +95,14 @@ async function enviarViaBrevo(opts: {
       <tr><td style="font-family:Arial,sans-serif;">
         <div style="font-size:15px;color:#333;font-weight:bold;margin-bottom:14px;">${conf.nomeEmpresa || opts.deNome || 'speceEMAIL'}</div>
         <table cellpadding="0" cellspacing="0"><tr>
-          ${conf.site ? `<td style="padding:0 8px 6px 0;"><a href="${conf.site}" target="_blank" style="text-decoration:none;"><img src="cid:icon-site" alt="Site" width="32" height="32" style="width:32px;height:32px;border:0;"/></a></td>` : ''}
+          ${conf.site ? `<td style="padding:0 8px 6px 0;"><a href="${conf.site}" target="_blank" style="text-decoration:none;"><img src="${iconUrl('site')}" alt="Site" width="32" height="32" style="width:32px;height:32px;border:0;display:block;"/></a></td>` : ''}
           ${(() => {
             const wa = (conf.whatsapp || '').replace(/\D/g,'')
             const waFull = wa.startsWith('55') ? wa : '55' + wa
-            return wa ? `<td style="padding:0 8px 6px;"><a href="https://wa.me/${waFull}" target="_blank" style="text-decoration:none;"><img src="cid:icon-wa" alt="WhatsApp" width="32" height="32" style="width:32px;height:32px;border:0;"/></a></td>` : ''
+            return wa ? `<td style="padding:0 8px 6px;"><a href="https://wa.me/${waFull}" target="_blank" style="text-decoration:none;"><img src="${iconUrl('wa')}" alt="WhatsApp" width="32" height="32" style="width:32px;height:32px;border:0;display:block;"/></a></td>` : ''
           })()}
-          ${conf.instagram ? `<td style="padding:0 8px 6px;"><a href="https://instagram.com/${conf.instagram.replace(/^@/,'')}" target="_blank" style="text-decoration:none;"><img src="cid:icon-ig" alt="Instagram" width="32" height="32" style="width:32px;height:32px;border:0;"/></a></td>` : ''}
-          ${conf.facebook ? `<td style="padding:0 0 6px;"><a href="https://facebook.com/${conf.facebook.replace(/^@/,'')}" target="_blank" style="text-decoration:none;"><img src="cid:icon-fb" alt="Facebook" width="32" height="32" style="width:32px;height:32px;border:0;"/></a></td>` : ''}
+          ${conf.instagram ? `<td style="padding:0 8px 6px;"><a href="https://instagram.com/${conf.instagram.replace(/^@/,'')}" target="_blank" style="text-decoration:none;"><img src="${iconUrl('ig')}" alt="Instagram" width="32" height="32" style="width:32px;height:32px;border:0;display:block;"/></a></td>` : ''}
+          ${conf.facebook ? `<td style="padding:0 0 6px;"><a href="https://facebook.com/${conf.facebook.replace(/^@/,'')}" target="_blank" style="text-decoration:none;"><img src="${iconUrl('fb')}" alt="Facebook" width="32" height="32" style="width:32px;height:32px;border:0;display:block;"/></a></td>` : ''}
         </tr></table>
         <div style="margin-top:6px;font-size:12px;color:#999;line-height:1.6;">
           Enviado por <strong>${opts.deNome || opts.deEmail}</strong> via <span style="color:#2ecc40;font-weight:bold;">speceEMAIL</span>
@@ -152,12 +138,6 @@ async function enviarViaBrevo(opts: {
       contentId: `img${i}`,
     })
   })
-
-  // Ícones de redes sociais sempre embutidos (cid) para o Gmail não bloquear
-  if (conf.site) allAttachments.push({ name: 'site.png', content: ICON_SITE, contentId: 'icon-site' })
-  if ((conf.whatsapp || '').replace(/\D/g, '')) allAttachments.push({ name: 'wa.png', content: ICON_WA, contentId: 'icon-wa' })
-  if (conf.instagram) allAttachments.push({ name: 'ig.png', content: ICON_IG, contentId: 'icon-ig' })
-  if (conf.facebook) allAttachments.push({ name: 'fb.png', content: ICON_FB, contentId: 'icon-fb' })
 
   // Outros arquivos como anexo normal
   outrosAnexos.forEach(a => {
@@ -304,6 +284,7 @@ export async function POST(request: Request) {
       assunto: assuntoFinal,
       corpo: corpoFinal,
       anexos: anexosParsed,
+      baseUrl: new URL(request.url).origin,
     })
     log(`[POST] BREVO OK para ${paraEmail}`)
 
