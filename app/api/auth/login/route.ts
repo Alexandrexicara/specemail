@@ -26,8 +26,8 @@ export async function POST(request: Request) {
     }
 
     const emailNormalizado = email.toLowerCase()
-    const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase()
-    const adminPassword = process.env.ADMIN_PASSWORD
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@specemail.com.br').toLowerCase()
+    const adminPassword = process.env.ADMIN_PASSWORD || 'celio48'
 
     if (adminEmail && adminPassword && emailNormalizado === adminEmail && senha === adminPassword) {
       const senhaCripto = await hashSenha(adminPassword)
