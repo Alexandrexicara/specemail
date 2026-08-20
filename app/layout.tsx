@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
-import { Analytics } from '@vercel/analytics/next';
 import { AgentationGuard } from '@/components/AgentationGuard';
 import { HappySeedsWatermark } from '@/components/HappySeedsWatermark';
 import './globals.css';
@@ -30,7 +29,6 @@ export default function RootLayout({
         {children}
         <HappySeedsWatermark />
         <AgentationGuard />
-        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   );
