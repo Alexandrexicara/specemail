@@ -25,6 +25,6 @@ COPY --from=builder /app/public* ./public
 
 RUN pnpm install --frozen-lockfile --prod
 
-EXPOSE 13000
+EXPOSE 10000
 
-CMD ["pnpm", "start"]
+CMD ["sh", "-c", "pnpm exec next start -p ${PORT:-13000}"]
