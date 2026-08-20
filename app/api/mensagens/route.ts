@@ -8,7 +8,13 @@ import { join } from 'node:path'
 
 // Ícones de redes sociais embutidos (base64 PNG) para aparecerem em qualquer cliente de e-mail
 const ICON_DIR = join(process.cwd(), 'assets', 'icons')
-const iconB64 = (file: string) => readFileSync(join(ICON_DIR, file)).toString('base64')
+const iconB64 = (file: string) => {
+  try {
+    return readFileSync(join(ICON_DIR, file)).toString('base64')
+  } catch {
+    return ''
+  }
+}
 const ICON_SITE = iconB64('site.png')
 const ICON_WA = iconB64('wa.png')
 const ICON_IG = iconB64('ig.png')
