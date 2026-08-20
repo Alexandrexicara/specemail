@@ -30,6 +30,7 @@ A general-purpose Next.js web application template with database initialization 
 
 2. **Environment variables**:
    Copy `.env.example` to `.env` and configure at minimum `DATABASE_URL`. Umami analytics variables (`NEXT_PUBLIC_UMAMI_SCRIPT_URL`, `NEXT_PUBLIC_UMAMI_WEBSITE_ID`) are optional and only injected in production.
+   Configure `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the Render environment to bootstrap an active administrator without payment. The account is created or updated automatically on the first login.
 
 3. **Run development server** (port 13000):
    ```bash

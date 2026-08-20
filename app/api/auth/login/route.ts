@@ -25,7 +25,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ erro: 'Informe e-mail e senha.' }, { status: 400 })
     }
 
-    const rows = await db.select().from(emails).where(eq(emails.email, email.toLowerCase())).limit(1)
+    const emailNormalizado = email.toLowerCase()
+    const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase()
+    const adminPassword = process.env.ADMIN_PASSWORD
+
+    if (adminEmail && adminPassword && emailNormalizado === adminEmail && senha === adminPassword) {
+      const senhaCripto = await hashSenha(adminPassword)
+      const existingAdmin = await db.select().from(emails).where(eq(emails.email, adminEmail)).limit(1)
+
+      if (existingAdmin.length === 0) {
+        await db.insert(emails).values({
+          nome: 'Administrador',
+          email: adminEmail,
+          senha: senhaCripto,
+          cargo: 'admin',
+          ativo: true,
+          statusPagamento: 'pago',
+        })
+      } else {
+        await db.update(emails).set({
+          senha: senhaCripto,
+          cargo: 'admin',
+          ativo: true,
+          statusPagamento: 'pago',
+        }).where(eq(emails.email, adminEmail))
+      }
+    }
+
+    const rows = await db.select().from(emails).where(eq(emails.email, emailNormalizado)).limit(1)
     if (rows.length === 0) {
       return NextResponse.json({ erro: 'E-mail ou senha incorretos.' }, { status: 401 })
     }
