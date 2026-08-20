@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev -p 13000",
     "build": "pnpm check:server-boundaries && next build",
-    "start": "next start -p 13000",
+    "start": "next start",
     "test": "node --import tsx --test lib/request.test.ts scripts/check-server-boundaries.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
