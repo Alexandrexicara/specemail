@@ -268,6 +268,17 @@ export async function POST(request: Request) {
         assunto: assuntoFinal,
         corpo: corpoFinal,
         anexos: anexosJson,
+        pasta: 'enviados',
+        lida: true,
+      })
+      await db.insert(mensagens).values({
+        deEmailId: usuario.id,
+        deEmail: usuario.email,
+        deNome: usuario.nome,
+        paraEmail: paraEmail,
+        assunto: assuntoFinal,
+        corpo: corpoFinal,
+        anexos: anexosJson,
         pasta: 'entrada',
         lida: false,
       })
