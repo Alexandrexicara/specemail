@@ -27,4 +27,4 @@ RUN pnpm install --frozen-lockfile --prod
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "pnpm exec next start -p ${PORT:-13000}"]
+CMD ["sh", "-c", "pnpm exec next start -H 0.0.0.0 -p ${PORT:-10000}"]
