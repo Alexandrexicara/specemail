@@ -43,6 +43,11 @@ async function enviarViaBrevo(opts: {
     throw new Error('Envio externo indisponível: configure BREVO_API_KEY no arquivo .env.')
   }
 
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_INBOUND_ADDRESS
+  if (!senderEmail) {
+    throw new Error('Envio externo indisponível: configure BREVO_SENDER_EMAIL com um remetente validado no Brevo.')
+  }
+
   const LOG = process.env.LOG_FILE || '/tmp/spece.log'
   const log = (msg: string) => {
     try { require('fs').appendFileSync(LOG, `${new Date().toISOString()} ${msg}\n`) } catch {}
@@ -117,10 +122,10 @@ async function enviarViaBrevo(opts: {
 </body></html>`
 
   const payload: Record<string, unknown> = {
-    sender: { name: opts.deNome || 'speceEMAIL', email: 'santossilvac992@gmail.com' },
+    sender: { name: process.env.BREVO_SENDER_NAME || opts.deNome || 'speceEMAIL', email: senderEmail },
     replyTo: {
-      name: opts.deNome || opts.deEmail,
-      email: process.env.EMAIL_INBOUND_ADDRESS || opts.deEmail,
+      name: process.env.BREVO_SENDER_NAME || opts.deNome || 'speceEMAIL',
+      email: process.env.EMAIL_INBOUND_ADDRESS || senderEmail,
     },
     to: [{ email: opts.para }],
     subject: opts.assunto || '(Sem assunto)',
