@@ -7,6 +7,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'speceEMAIL — Sistema de E-mail Empresarial',
   description: 'Gerencie e-mails corporativos com R$ 20,00/mês e 10 GB por usuário.',
+  icons: {
+    icon: '/incon.png',
+  },
 };
 
 export default function RootLayout({
